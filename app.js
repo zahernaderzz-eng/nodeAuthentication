@@ -1,7 +1,6 @@
 const path = require('path');
 
 const express = require('express');
-const bodyParser = require('body-parser');
 const mongoose = require('mongoose');
 const session = require('express-session');
 const MongoDBStore = require('connect-mongodb-session')(session);
@@ -25,8 +24,11 @@ const adminRoutes = require('./routes/admin');
 const shopRoutes = require('./routes/shop');
 const authRoutes = require('./routes/auth');
 
-app.use(bodyParser.urlencoded({ extended: false }));
+// ✅ Express built-in parsers
+app.use(express.urlencoded({ extended: false }));
+app.use(express.json());
 app.use(express.static(path.join(__dirname, 'public')));
+
 app.use(
   session({
     secret: 'my secret',
@@ -48,18 +50,49 @@ app.use((req, res, next) => {
     .catch(err => console.log(err));
 });
 
+// ✅ Debugging middleware
+app.use((req, res, next) => {
+  console.log(`📥 ${req.method} ${req.path}`);
+  if (req.method === 'POST') {
+    console.log('📋 Body:', req.body);
+  }
+  next();
+});
+
 app.use('/admin', adminRoutes);
 app.use(shopRoutes);
 app.use(authRoutes);
 
 app.use(errorController.get404);
 
+// ✅ Clean connection - no deprecated options needed
 mongoose
   .connect(MONGODB_URI)
   .then(result => {
-    console.log('Connected!');
-    app.listen(3000);
+    console.log('✅ Connected to MongoDB successfully!');
+
+    // ✅ Test database write
+    console.log('🧪 Testing database write...');
+    const testUser = new User({
+      email: 'test@example.com',
+      password: 'testpass123',
+      cart: { items: [] }
+    });
+
+    return testUser.save();
+  })
+  .then(savedUser => {
+    console.log('✅ Test user saved successfully:', savedUser._id);
+    // Delete test user
+    return User.deleteOne({ email: 'test@example.com' });
+  })
+  .then(() => {
+    console.log('🗑️ Test user deleted');
+    console.log('🚀 Server starting on port 3000...');
+    app.listen(3000, () => {
+      console.log('✅ Server is running on http://localhost:3000');
+    });
   })
   .catch(err => {
-    console.log(err);
+    console.log('❌ Database error:', err);
   });
